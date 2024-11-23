@@ -38,20 +38,9 @@ namespace RIS_SERVER.src.auth
 
             return new
             {
-                Action = "action/sign-up-response",
+                Action = "auth/sign-up-response",
                 result.Token,
                 Data = result.User
-            };
-        }
-
-        public object Me(ClientRequest request)
-        {
-            var result = _authService.Me(request.Token);
-            
-            return new
-            {
-                Action = "action/sign-up-response",
-                Data = result
             };
         }
     }

@@ -2,6 +2,7 @@
 using RIS_SERVER.src.auth;
 using RIS_SERVER.src.storage;
 using RIS_SERVER.src.storage.dto;
+using RIS_SERVER.src.user;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,19 +13,19 @@ namespace RIS_SERVER.src.common.middlewares
 {
     public class CheckStorageAccessMiddleware : Middleware
     {
-        private readonly AuthService _authService;
+        private readonly UserService _userService;
         private readonly StorageService _storageService;
 
-        public CheckStorageAccessMiddleware(AuthService authService, StorageService storageService)
+        public CheckStorageAccessMiddleware(UserService userService, StorageService storageService)
         {
-            _authService = authService;
+            _userService = userService;
             _storageService = storageService;
         }
 
         public override bool Run(ClientRequest request)
         {
             var data = DtoValidator.Validate<StorageParamsDto>(request.Data.ToString());
-            var user = _authService.Me(request.Token);
+            var user = _userService.Me(request.Token);
             var storage = _storageService.FindById(data.StorageId);
 
             if (storage.OwnerId != user.Id && !storage.Collaborators.Any(collab => collab.Id == user.Id))

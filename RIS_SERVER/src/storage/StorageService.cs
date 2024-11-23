@@ -67,6 +67,62 @@ namespace RIS_SERVER.src.storage
             return storage;
         }
 
+        public StorageDto FindOne(int id)
+        {
+            var storage = _context.Storages
+                .Include(storage => storage.Owner)
+                .Include(storage => storage.Collaborators)
+                .Include(storage => storage.Files)
+                .Where(storage => storage.Id == id)
+                .FirstOrDefault();
+
+            if (storage == null)
+            {
+                throw new WsException(404, "Storage not found");
+            }
+
+            return new StorageDto(storage);
+        }
+
+        public List<StorageDto> FindMany()
+        {
+            var storages = _context.Storages
+                .Include(storage => storage.Owner)
+                .Include(storage => storage.Collaborators)
+                .Include(storage => storage.Files)
+                .ToList();
+
+            var dtos = new List<StorageDto>();
+
+            foreach (var storage in storages)
+            {
+                dtos.Add(new StorageDto(storage));
+            }
+
+            return dtos;
+        }
+
+        public List<StorageDto> FindUserStorages(int userId)
+        {
+            _userService.FindById(userId);
+
+            var storages = _context.Storages
+               .Include(storage => storage.Owner)
+               .Include(storage => storage.Collaborators)
+               .Include(storage => storage.Files)
+               .Where(storage => storage.OwnerId == userId || storage.Collaborators.Any(coll => coll.Id == userId))
+               .ToList();
+
+            var dtos = new List<StorageDto>();
+
+            foreach (var storage in storages)
+            {
+                dtos.Add(new StorageDto(storage));
+            }
+
+            return dtos;
+        }
+
         public Storage FindById(int id)
         {
             var storage = _context.Storages

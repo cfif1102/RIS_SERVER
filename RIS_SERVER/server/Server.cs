@@ -10,7 +10,6 @@ namespace RIS_SERVER.server
 {
     public class Server
     {
-        private readonly ConcurrentDictionary<string, WebSocket> Clients = new();
         private readonly SemaphoreSlim Semaphore = new(1, 1);
         public static readonly JsonSerializerOptions options = new JsonSerializerOptions
         {
@@ -34,8 +33,11 @@ namespace RIS_SERVER.server
         public void Start()
         {
             HttpListener listener = new HttpListener();
+
             listener.Prefixes.Add("http://localhost:8080/");
             listener.Start();
+
+            Console.WriteLine("Server is started...");
 
             while (true)
             {
@@ -45,13 +47,8 @@ namespace RIS_SERVER.server
                 {
                     WebSocketContext wsContext = context.AcceptWebSocketAsync(null).Result;
 
-                    string clientId = Guid.NewGuid().ToString(); 
 
-                    Clients[clientId] = wsContext.WebSocket;
-
-                    Console.WriteLine($"Клиент подключен: {clientId}");
-
-                    ThreadPool.QueueUserWorkItem(_ => HandleWebSocketConnection(clientId, wsContext.WebSocket));
+                    ThreadPool.QueueUserWorkItem(_ => HandleWebSocketConnection(wsContext.WebSocket));
                 }
                 else
                 {
@@ -61,58 +58,70 @@ namespace RIS_SERVER.server
             }
         }
 
-        private void HandleWebSocketConnection(string clientId, WebSocket webSocket)
+        private void HandleWebSocketConnection(WebSocket webSocket)
         {
             byte[] buffer = new byte[1024];
             var receivedData = new StringBuilder();
             WebSocketReceiveResult result;
+            string action = "";
 
-            try
+            while (webSocket.State == WebSocketState.Open)
             {
-                while (webSocket.State == WebSocketState.Open)
+                do
                 {
-                    do
-                    {
-                        result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
+                    result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
 
-                        receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-                    }
-                    while (!result.EndOfMessage);
+                    receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                }
+                while (!result.EndOfMessage);
 
-                    string jsonMessage = receivedData.ToString();
+                string jsonMessage = receivedData.ToString();
 
-                    if (jsonMessage.Trim().Length == 0)
-                    {
-                        continue;
-                    }
+                if (jsonMessage.Trim().Length == 0)
+                {
+                    continue;
+                }
 
-                    var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
+                var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
+
+                action = clientRequest.Action;
+
+                Console.WriteLine($"Received {action} from client...");
+
+                try
+                {
+                    Semaphore.Wait();
 
                     var response = _handler.Run(clientRequest);
 
                     Send(response, webSocket);
 
                     receivedData.Clear();
-                }
-            }
-            catch (WsException ex)
-            {
-                var message = new
-                {
-                    Action = "error",
-                    Data = new
-                    {
-                        Status = ex.ErrorCode,
-                        Message = ex.CustomMessage
-                    }
-                };
 
-                Send(message, webSocket);
+                    Semaphore.Release();
+                }
+                catch (WsException ex)
+                {
+
+                    Semaphore.Release();
+
+                    var message = new
+                    {
+                        Action = $"{action}-error",
+                        Data = new
+                        {
+                            Status = ex.ErrorCode,
+                            Message = ex.CustomMessage,
+                        }
+                    };
+
+                    Send(message, webSocket);
+
+                    receivedData.Clear();
+                } 
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка у клиента {clientId}: {ex.Message}");
-            }
+
+            webSocket.Dispose();
         }
 
         private void Send(object obj, WebSocket webSocket)

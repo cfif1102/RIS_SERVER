@@ -63,24 +63,5 @@ namespace RIS_SERVER.src.auth
 
             return new UserAuthDto(userDto, token);
         }
-
-        public UserDto Me(string token)
-        {
-            var t = _tokenService.ValidateToken(token);
-
-            if (t == null)
-            {
-                throw new WsException(400, "Can't extract user...");
-            }
-
-            var user = _userService.FindByUsername(t.Identity.Name);
-
-            if (user == null)
-            {
-                throw new WsException(400, "User not found...");
-            }
-
-            return new UserDto(user);
-        }
     }
 }

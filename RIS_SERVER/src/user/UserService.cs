@@ -1,6 +1,7 @@
 ﻿using RIS_SERVER.entities;
 using RIS_SERVER.server;
 using RIS_SERVER.src.common;
+using RIS_SERVER.src.jwt;
 using RIS_SERVER.src.user.dto;
 using System;
 using System.Collections.Generic;
@@ -13,10 +14,12 @@ namespace RIS_SERVER.src.user
     public class UserService
     {
         private readonly AppDbContext _context;
+        private readonly TokenService _tokenService;
 
-        public UserService(AppDbContext appDbContext)
+        public UserService(AppDbContext appDbContext, TokenService tokenService)
         {
             _context = appDbContext;
+            _tokenService = tokenService;
         }
 
         public UserDto FindOne(int id)
@@ -62,6 +65,38 @@ namespace RIS_SERVER.src.user
             _context.SaveChanges();
 
             return user;
+        }
+
+        public List<UserDto> FindMany()
+        {
+            var users = _context.Users.ToList();
+            var dtos = new List<UserDto>();
+
+            foreach (var user in users)
+            {
+                dtos.Add(new UserDto(user));
+            }
+
+            return dtos;
+        }
+
+        public UserDto Me(string token)
+        {
+            var t = _tokenService.ValidateToken(token);
+
+            if (t == null)
+            {
+                throw new WsException(400, "Can't extract user...");
+            }
+
+            var user = FindByUsername(t.Identity.Name);
+
+            if (user == null)
+            {
+                throw new WsException(400, "User not found...");
+            }
+
+            return new UserDto(user);
         }
     }
 }
