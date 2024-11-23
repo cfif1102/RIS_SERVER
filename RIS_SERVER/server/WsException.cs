@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RIS_SERVER.src.common
+namespace RIS_SERVER.server
 {
     using System;
 
@@ -13,7 +13,7 @@ namespace RIS_SERVER.src.common
         public int ErrorCode { get; set; }
         public string CustomMessage { get; set; }
 
-        public WsException(int errorCode, string message) : base(message)  
+        public WsException(int errorCode, string message) : base(message)
         {
             ErrorCode = errorCode;
             CustomMessage = message;

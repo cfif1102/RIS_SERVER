@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RIS_SERVER.server;
 
 namespace RIS_SERVER.src.auth
 {
@@ -69,7 +70,7 @@ namespace RIS_SERVER.src.auth
 
             if (t == null)
             {
-                throw new Exception("Can't extract user...");
+                throw new WsException(400, "Can't extract user...");
             }
 
             var user = _userService.FindByUsername(t.Identity.Name);

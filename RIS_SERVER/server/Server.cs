@@ -1,13 +1,10 @@
-﻿using RIS_SERVER.src.common;
-using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace RIS_SERVER.server
 {
@@ -15,10 +12,24 @@ namespace RIS_SERVER.server
     {
         private readonly ConcurrentDictionary<string, WebSocket> Clients = new();
         private readonly SemaphoreSlim Semaphore = new(1, 1);
-        private readonly JsonSerializerOptions options = new JsonSerializerOptions
+        public static readonly JsonSerializerOptions options = new JsonSerializerOptions
         {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             PropertyNameCaseInsensitive = true,
         };
+        private readonly Handler _handler;
+
+        public Server(Handler handler)
+        {
+            _handler = handler;
+        }
+
+        public string SerializeResponse(object response)
+        {
+            var json = JsonSerializer.Serialize(response, options);
+
+            return json;
+        }
 
         public void Start()
         {
@@ -52,66 +63,65 @@ namespace RIS_SERVER.server
 
         private void HandleWebSocketConnection(string clientId, WebSocket webSocket)
         {
-            byte[] buffer = new byte[1024 * 4];
-            MemoryStream binaryStream = new MemoryStream();
-            FileMetadataDto fileMetadata = null;
+            byte[] buffer = new byte[1024];
+            var receivedData = new StringBuilder();
+            WebSocketReceiveResult result;
 
             try
             {
                 while (webSocket.State == WebSocketState.Open)
                 {
-                    WebSocketReceiveResult result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
+                    do
+                    {
+                        result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
 
-                    if (result.MessageType == WebSocketMessageType.Text)
-                    {
-                        string jsonMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        fileMetadata = JsonSerializer.Deserialize<FileMetadataDto>(jsonMessage, options);
+                        receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
                     }
-                    else if (result.MessageType == WebSocketMessageType.Binary)
-                    {
-                        binaryStream.Write(buffer, 0, result.Count);
-                    }
+                    while (!result.EndOfMessage);
 
-                    if (result.EndOfMessage)
+                    string jsonMessage = receivedData.ToString();
+
+                    if (jsonMessage.Trim().Length == 0)
                     {
-                        SaveFile(clientId, binaryStream.ToArray(), fileMetadata);
-                        binaryStream.SetLength(0);
+                        continue;
                     }
 
-                    if (result.CloseStatus.HasValue)
-                    {
-                        break;
-                    }
+                    var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
+
+                    var response = _handler.Run(clientRequest);
+
+                    Send(response, webSocket);
+
+                    receivedData.Clear();
                 }
+            }
+            catch (WsException ex)
+            {
+                var message = new
+                {
+                    Action = "error",
+                    Data = new
+                    {
+                        Status = ex.ErrorCode,
+                        Message = ex.CustomMessage
+                    }
+                };
+
+                Send(message, webSocket);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Ошибка у клиента {clientId}: {ex.Message}");
             }
-            finally
-            {
-                binaryStream.Dispose();
-
-                if (webSocket.State == WebSocketState.Open)
-                {
-                    webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Закрытие соединения", CancellationToken.None).Wait();
-                }
-            }
         }
 
-        private void SaveFile(string clientId, byte[] data, FileMetadataDto metadata)
+        private void Send(object obj, WebSocket webSocket)
         {
-            string mediaDirectory = Path.Combine(AppContext.BaseDirectory, "media");
+            var json = JsonSerializer.Serialize(obj, options);
 
-            if (!Directory.Exists(mediaDirectory))
-            {
-                Directory.CreateDirectory(mediaDirectory);
-            }
-
-            string uniqueFileName = $"{Guid.NewGuid()}_{metadata.Name}";
-            string filePath = Path.Combine(mediaDirectory, uniqueFileName);
-
-            File.WriteAllBytes(filePath, data);
+            webSocket
+                .SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, CancellationToken.None)
+                .Wait();
         }
     }
 }

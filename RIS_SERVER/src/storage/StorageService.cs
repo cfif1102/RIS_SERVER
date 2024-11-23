@@ -1,4 +1,6 @@
-﻿using RIS_SERVER.entities;
+﻿using Microsoft.EntityFrameworkCore;
+using RIS_SERVER.entities;
+using RIS_SERVER.server;
 using RIS_SERVER.src.common;
 using RIS_SERVER.src.storage.dto;
 using RIS_SERVER.src.user;
@@ -21,9 +23,56 @@ namespace RIS_SERVER.src.storage
             _userService = userService;
         }
 
+        public Storage AddCollaborator(CollaboratorDto collaboratorDto)
+        {
+            var user = _userService.FindById(collaboratorDto.UserId);
+            var storage = FindById(collaboratorDto.StorageId);
+
+            if (storage.OwnerId == user.Id)
+            {
+                throw new WsException(400, "You can't work with yourself as collaborators...");
+            }
+
+            if (storage.Collaborators.Any(coll => coll.Id == user.Id))
+            {
+                throw new WsException(400, "The user is already a collaborator, so you can't add him again...");
+            }
+
+            storage.Collaborators.Add(user);
+
+            _context.SaveChanges();
+
+            return storage;
+        }
+
+        public Storage RemoveCollaborator(CollaboratorDto collaboratorDto)
+        {
+            var user = _userService.FindById(collaboratorDto.UserId);
+            var storage = FindById(collaboratorDto.StorageId);
+
+            if (storage.OwnerId == user.Id)
+            {
+                throw new WsException(400, "You can't work with yourself as collaborators...");
+            }
+
+            if (storage.Collaborators.Any(coll => coll.Id == user.Id) == false)
+            {
+                throw new WsException(400, "The user isn't a collaborator, so you can't remove him...");
+            }
+
+            storage.Collaborators.Remove(user);
+
+            _context.SaveChanges();
+
+            return storage;
+        }
+
         public Storage FindById(int id)
         {
-            var storage = _context.Storages.Where(storage => storage.Id == id).FirstOrDefault();
+            var storage = _context.Storages
+                .Include(storage => storage.Collaborators)
+                .Where(storage => storage.Id == id)
+                .FirstOrDefault();
 
             if (storage == null)
             {
@@ -48,11 +97,11 @@ namespace RIS_SERVER.src.storage
             return storage;
         }
 
-        public Storage Update(int id, CreateStorageDto createStorageDto)
+        public Storage Update(int id, UpdateStorageDto updateStorageDto)
         {
             var storage = FindById(id);
 
-            storage.Name = createStorageDto.Name;
+            storage.Name = updateStorageDto.Name;
 
             _context.SaveChanges();
 
