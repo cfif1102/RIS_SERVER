@@ -65,63 +65,68 @@ namespace RIS_SERVER.server
             WebSocketReceiveResult result;
             string action = "";
 
-            while (webSocket.State == WebSocketState.Open)
+            try
             {
-                do
+                while (webSocket.State == WebSocketState.Open)
                 {
-                    result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
-
-                    receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-                }
-                while (!result.EndOfMessage);
-
-                string jsonMessage = receivedData.ToString();
-
-                if (jsonMessage.Trim().Length == 0)
-                {
-                    continue;
-                }
-
-                var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
-
-                action = clientRequest.Action;
-
-                Console.WriteLine($"Received {action} from client...");
-
-                try
-                {
-                    Semaphore.Wait();
-
-                    var response = _handler.Run(clientRequest);
-
-                    Send(response, webSocket);
-
-                    receivedData.Clear();
-
-                    Semaphore.Release();
-                }
-                catch (WsException ex)
-                {
-
-                    Semaphore.Release();
-
-                    var message = new
+                    do
                     {
-                        Action = $"{action}-error",
-                        Data = new
+                        result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
+
+                        receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                    }
+                    while (!result.EndOfMessage);
+
+                    string jsonMessage = receivedData.ToString();
+
+                    if (jsonMessage.Trim().Length == 0)
+                    {
+                        continue;
+                    }
+
+                    var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
+
+                    action = clientRequest.Action;
+
+                    Console.WriteLine($"Received {action} from client...");
+
+                    try
+                    {
+                        Semaphore.Wait();
+
+                        var response = _handler.Run(clientRequest);
+
+                        Send(response, webSocket);
+
+                        receivedData.Clear();
+
+                        Semaphore.Release();
+                    }
+                    catch (WsException ex)
+                    {
+
+                        Semaphore.Release();
+
+                        var message = new
                         {
-                            Status = ex.ErrorCode,
-                            Message = ex.CustomMessage,
-                        }
-                    };
+                            Action = $"{action}-error",
+                            Data = new
+                            {
+                                Status = ex.ErrorCode,
+                                Message = ex.CustomMessage,
+                            }
+                        };
 
-                    Send(message, webSocket);
+                        Send(message, webSocket);
 
-                    receivedData.Clear();
-                } 
+                        receivedData.Clear();
+                    }
+                }
             }
-
-            webSocket.Dispose();
+            finally
+            {
+                webSocket.Dispose();
+            }
         }
 
         private void Send(object obj, WebSocket webSocket)
