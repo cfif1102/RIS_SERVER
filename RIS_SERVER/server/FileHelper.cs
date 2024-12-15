@@ -1,6 +1,7 @@
 ﻿using RIS_SERVER.src.common;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
@@ -10,25 +11,31 @@ namespace RIS_SERVER.server
 {
     public class FileHelper
     {
-        public string HandleFileWrite(string base64, string fileName)
+        public string CombinePath(string fileName)
+        {
+            string mediaDirectory = Path.Combine(AppContext.BaseDirectory, "media");
+
+            if (!Directory.Exists(mediaDirectory))
+            {
+                Directory.CreateDirectory(mediaDirectory);
+            }
+
+            string filePath = Path.Combine(mediaDirectory, fileName);
+
+            return filePath;
+        }
+
+        public void HandleFileWrite(string base64, string fileName)
         {
             try
             {
                 byte[] fileBytes = Convert.FromBase64String(base64);
+                string filePath = CombinePath(fileName);
 
-                string mediaDirectory = Path.Combine(AppContext.BaseDirectory, "media");
-
-                if (!Directory.Exists(mediaDirectory))
+                using (var stream = new FileStream(filePath, FileMode.Append))
                 {
-                    Directory.CreateDirectory(mediaDirectory);
+                    stream.Write(fileBytes, 0, fileBytes.Length);
                 }
-
-                string uniqueFileName = $"{Guid.NewGuid()}_{fileName}";
-                string filePath = Path.Combine(mediaDirectory, uniqueFileName);
-
-                File.WriteAllBytes(filePath, fileBytes);
-
-                return filePath;
             }
             catch
             {
@@ -36,23 +43,44 @@ namespace RIS_SERVER.server
             }
         }
 
-        public string HandleFileRead(string filePath)
+        public (long newOffset, bool isOver, string base64Chunk) HandleFileRead(string filePath, long offset, int chunkSize)
         {
             if (!File.Exists(filePath))
             {
-                throw new WsException(400, "No file found...");
+                throw new FileNotFoundException($"Файл {filePath} не найден.");
             }
+
+            byte[] buffer = new byte[chunkSize];
 
             try
             {
-                byte[] fileBytes = File.ReadAllBytes(filePath);
-                string base64String = Convert.ToBase64String(fileBytes);
+                using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    if (offset >= fs.Length)
+                    {
+                        return (0, true, "");
+                    }
 
-                return base64String;
+                    fs.Seek(offset, SeekOrigin.Begin);
+
+                    int bytesRead = fs.Read(buffer, 0, chunkSize);
+
+                    if (bytesRead < chunkSize)
+                    {
+                        Array.Resize(ref buffer, bytesRead);
+                    }
+
+                    long newOffset = offset + bytesRead;
+                    bool isOver = newOffset >= fs.Length;
+
+                    string base64Chunk = Convert.ToBase64String(buffer);
+
+                    return (newOffset, isOver, base64Chunk);
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                throw new WsException(400, "Can't read file...");
+                throw new WsException(400, "No file found...");
             }
         }
 

@@ -36,13 +36,13 @@ namespace RIS_SERVER.src.file
             return file;
         }
 
-        public File Create(CreateFileDto createFileDto)
+        public File Create(UploadFullFileDto createFileDto)
         {
             var storage = _storageService.FindById(createFileDto.StorageId);
             var file = new File
             {
-                Name = createFileDto.Name,
-                Path = createFileDto.Path,
+                Name = createFileDto.RealName,
+                Path = createFileDto.FileName,
                 Size = createFileDto.Size,
                 Storage = storage
             };

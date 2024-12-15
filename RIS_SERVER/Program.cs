@@ -70,10 +70,11 @@ using (var scope = serviceProvider.CreateScope())
     handler.Add("storage/find-many", storageHandler.FindMany, []);
     handler.Add("storage/find-many-user", storageHandler.FindUserStorages, [checkUserMiddleware]);
 
-    handler.Add("file/create", fileHandler.Create, [checkUserMiddleware, checkStorageAccessMiddleware]);
+    handler.Add("file/upload-chunk", fileHandler.UploadChunk, [checkUserMiddleware, checkStorageAccessMiddleware]);
+    handler.Add("file/upload-full", fileHandler.UploadFullFile, [checkUserMiddleware, checkStorageAccessMiddleware]);
     handler.Add("file/update", fileHandler.Update, [checkUserMiddleware, checkStorageAccessMiddleware]);
     handler.Add("file/delete", fileHandler.Delete, [checkUserMiddleware, checkStorageAccessMiddleware]);
-    handler.Add("file/download", fileHandler.DownloadFile, []);
+    handler.Add("file/download-chunk", fileHandler.DownloadChunk, []);
 
     Server server = new Server(handler);
 

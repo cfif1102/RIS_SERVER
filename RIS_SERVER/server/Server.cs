@@ -34,26 +34,32 @@ namespace RIS_SERVER.server
         {
             HttpListener listener = new HttpListener();
 
-            listener.Prefixes.Add("http://localhost:8080/");
+            listener.Prefixes.Add("https://*:8000/");
             listener.Start();
 
             Console.WriteLine("Server is started...");
 
             while (true)
             {
-                HttpListenerContext context = listener.GetContext();
-
-                if (context.Request.IsWebSocketRequest)
+                try
                 {
-                    WebSocketContext wsContext = context.AcceptWebSocketAsync(null).Result;
+
+                    HttpListenerContext context = listener.GetContext();
+
+                    if (context.Request.IsWebSocketRequest)
+                    {
+                        WebSocketContext wsContext = context.AcceptWebSocketAsync(null).Result;
 
 
-                    ThreadPool.QueueUserWorkItem(_ => HandleWebSocketConnection(wsContext.WebSocket));
-                }
-                else
+                        ThreadPool.QueueUserWorkItem(_ => HandleWebSocketConnection(wsContext.WebSocket));
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = 400;
+                        context.Response.Close();
+                    }
+                } catch (Exception ex)
                 {
-                    context.Response.StatusCode = 400;
-                    context.Response.Close();
                 }
             }
         }
@@ -96,11 +102,11 @@ namespace RIS_SERVER.server
 
                         var response = _handler.Run(clientRequest);
 
+                        Semaphore.Release();
+
                         Send(response, webSocket);
 
                         receivedData.Clear();
-
-                        Semaphore.Release();
                     }
                     catch (WsException ex)
                     {

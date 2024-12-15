@@ -20,18 +20,49 @@ namespace RIS_SERVER.src.file
             _fileHelper = fileHelper;
         }
 
-        public object Create(ClientRequest request)
+        public object DownloadChunk(ClientRequest request)
         {
-            var createFileDto = DtoValidator.Validate<CreateFileDto>(request.Data.ToString());
-            var filePath = _fileHelper.HandleFileWrite(createFileDto.File, createFileDto.Name);
+            var downloadChunkDto = DtoValidator.Validate<DownloadFileChunkDto>(request.Data.ToString());
+            var file = _fileService.FindById(downloadChunkDto.FileId);
 
-            createFileDto.Path = filePath;
-
-            var file = _fileService.Create(createFileDto);
+            var result = _fileHelper.HandleFileRead(file.Path, downloadChunkDto.Offset, 10 * 1024 * 1024);
 
             return new
             {
-                Action = "file/create-response",
+                Action = "file/download-chunk-response",
+                Data = new
+                {
+                    Offset = result.newOffset,
+                    Chunk = result.base64Chunk,
+                    IsOver = result.isOver
+                }
+            };
+        }
+
+        public object UploadChunk(ClientRequest request)
+        {
+            var uploadChunkDto = DtoValidator.Validate<UploadFileChunkDto>(request.Data.ToString());
+
+            _fileHelper.HandleFileWrite(uploadChunkDto.Chunk, uploadChunkDto.FileName);
+
+            return new
+            {
+                Action = "file/upload-chunk-response"
+            };
+        }
+
+        public object UploadFullFile(ClientRequest request)
+        {
+            var uploadFullDto = DtoValidator.Validate<UploadFullFileDto>(request.Data.ToString());
+            string filePath = _fileHelper.CombinePath(uploadFullDto.FileName);
+
+            uploadFullDto.FileName = filePath;
+
+            var file = _fileService.Create(uploadFullDto);
+
+            return new
+            {
+                Action = "file/upload-full-response",
                 Data = file
             };
         }
@@ -62,24 +93,6 @@ namespace RIS_SERVER.src.file
                 Data = new
                 {
                     Message = "File is deleted..."
-                }
-            };
-        }
-
-        public object DownloadFile(ClientRequest request)
-        {
-            var fileParamsDto = DtoValidator.Validate<FileParamsDto>(request.Data.ToString());
-            var file = _fileService.FindById(fileParamsDto.FileId);
-            var fileData = _fileHelper.HandleFileRead(file.Path);
-
-            return new
-            {
-                Action = "file/download-response",
-                Data = new
-                {
-                    file.Name,
-                    file.Size,
-                    File = fileData
                 }
             };
         }
