@@ -34,7 +34,7 @@ namespace RIS_SERVER.server
         {
             HttpListener listener = new HttpListener();
 
-            listener.Prefixes.Add("https://*:8000/");
+            listener.Prefixes.Add("http://127.0.0.1:8888/");
             listener.Start();
 
             Console.WriteLine("Server is started...");
@@ -69,7 +69,6 @@ namespace RIS_SERVER.server
             byte[] buffer = new byte[1024];
             var receivedData = new StringBuilder();
             WebSocketReceiveResult result;
-            string action = "";
 
             try
             {
@@ -77,22 +76,34 @@ namespace RIS_SERVER.server
                 {
                     do
                     {
-                        result = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).Result;
+                        try
+                        {
+                            result = webSocket
+                                .ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult();
+                        }
+                        catch (WebSocketException ex)
+                        {
+                            // Клиент завершил соединение некорректно.
+                            Console.WriteLine($"WebSocketException: {ex.Message}");
+                            return;
+                        }
+
+                        if (result.Count == 0) break;
 
                         receivedData.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-                    }
-                    while (!result.EndOfMessage);
+                    } while (!result.EndOfMessage);
 
                     string jsonMessage = receivedData.ToString();
 
-                    if (jsonMessage.Trim().Length == 0)
+                    if (string.IsNullOrWhiteSpace(jsonMessage))
                     {
                         continue;
                     }
 
                     var clientRequest = JsonSerializer.Deserialize<ClientRequest>(jsonMessage, options);
-
-                    action = clientRequest.Action;
+                    var action = clientRequest.Action;
 
                     Console.WriteLine($"Received {action} from client...");
 
@@ -108,9 +119,18 @@ namespace RIS_SERVER.server
 
                         receivedData.Clear();
                     }
+                    catch (WebSocketException)
+                    {
+                        if (webSocket.State == WebSocketState.Open || webSocket.State == WebSocketState.CloseReceived)
+                        {
+                            webSocket
+                                .CloseAsync(WebSocketCloseStatus.NormalClosure, "Соединение закрыто сервером", CancellationToken.None)
+                                .Wait();
+                        }
+                        return;
+                    }
                     catch (WsException ex)
                     {
-
                         Semaphore.Release();
 
                         var message = new
@@ -129,11 +149,27 @@ namespace RIS_SERVER.server
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error: {ex.Message}");
+            }
             finally
             {
+                if (webSocket.State != WebSocketState.Closed && webSocket.State != WebSocketState.Aborted)
+                {
+                    try
+                    {
+                        webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None).Wait();
+                    }
+                    catch
+                    {
+                    }
+                }
                 webSocket.Dispose();
+                Console.WriteLine("WebSocket connection closed.");
             }
         }
+
 
         private void Send(object obj, WebSocket webSocket)
         {

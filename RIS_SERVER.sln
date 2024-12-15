@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RIS_SERVER", "RIS_SERVER\RI
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{F82F6C99-B8D6-40FB-8BF2-FA9F84696DEB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LoadTest", "LoadTest\LoadTest.csproj", "{A3CC7D91-B523-4DE5-B144-0E115153548C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{F82F6C99-B8D6-40FB-8BF2-FA9F84696DEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F82F6C99-B8D6-40FB-8BF2-FA9F84696DEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F82F6C99-B8D6-40FB-8BF2-FA9F84696DEB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3CC7D91-B523-4DE5-B144-0E115153548C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3CC7D91-B523-4DE5-B144-0E115153548C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3CC7D91-B523-4DE5-B144-0E115153548C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3CC7D91-B523-4DE5-B144-0E115153548C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
